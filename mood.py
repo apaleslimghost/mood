@@ -4,19 +4,40 @@ import signal
 from gfxhat import touch, lcd, backlight, fonts
 from PIL import Image, ImageFont, ImageDraw
 
-import pyo
+from pyo import *
 
-class Midiencoder(pyo.PyoObject):
-    def __init__(self, ctlnumber, minscale=0, maxscale=1, init=0, channel=0, mul=1, add=0):
-        pyo.PyoObject.__init__(self, mul, add)
+def clamp(n, smallest, largest): return max(smallest, min(n, largest))
+
+def midi_2s_complement(value):
+    if value <= 64:
+        return value
+    else:
+        return value - 128
+
+class Midiencoder(PyoObject):
+    def __init__(self, ctlnumber, minscale=0, maxscale=1, init=0, encoder_step=8, step=0.01):
+        PyoObject.__init__(self)
+        self._value = init
         self._ctlnumber = ctlnumber
         self._minscale = minscale
         self._maxscale = maxscale
-        self._channel = channel
-        self._raw = pyo.RawMidi(self.handle_midi)
+        self._encoder_step = encoder_step
+        self._step = step
+        self._raw = RawMidi(self.handle_midi)
+        self._midi = Midictl(-1, minscale, maxscale, init)
+        self._base_objs = self._midi.getBaseObjects()
+        self._init_play()
+
 
     def handle_midi(self, status, data1, data2):
-        print(status, data1, data2)
+        if data1 == self._ctlnumber:
+            self._midi.setValue(
+                clamp(
+                    self._midi.get() + self._step * midi_2s_complement(data2) / self._encoder_step,
+                    self._minscale,
+                    self._maxscale
+                )
+            )
 
 # led_states = [False for _ in range(6)]
 
@@ -57,13 +78,8 @@ class Midiencoder(pyo.PyoObject):
  
 # midiin = rtmidi.RtMidiIn()
 
-# def midi_2s_complement(value):
-#     if value <= 64:
-#         return value
-#     else:
-#         return value - 128
 
-# def clamp(n, smallest, largest): return max(smallest, min(n, largest))
+
 
 # def handle_midi(message):
 #     if message.isController():
@@ -94,19 +110,18 @@ class Midiencoder(pyo.PyoObject):
 
 # pyo.pa_list_devices()
 # print(pyo.pa_get_default_output())
-s = pyo.Server(audio='jack', duplex=0)
+s = Server(audio='jack', duplex=0)
+s.setMidiInputDevice(99)
 s.boot()
 s.start()
 
-s.setAmp(1.0)
+from os import path
 
-pyo.Sine().out()
+m = Midiencoder(22, minscale = 110, maxscale = 440, init = 220, step=10)
+si = Sine(freq = m).out()
 
-# s.gui(locals())
-# Midiencoder(22)
-
-while 1:
-    pass
+# while 1:
+#     pass
 
 try:
     signal.pause()
