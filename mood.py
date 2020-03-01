@@ -1,91 +1,120 @@
-import rtmidi
-
 import time
 import signal
 
 from gfxhat import touch, lcd, backlight, fonts
 from PIL import Image, ImageFont, ImageDraw
 
-led_states = [False for _ in range(6)]
+import pyo
 
-width, height = lcd.dimensions()
+class Midiencoder(pyo.PyoObject):
+    def __init__(self, ctlnumber, minscale=0, maxscale=1, init=0, channel=0, mul=1, add=0):
+        pyo.PyoObject.__init__(self, mul, add)
+        self._ctlnumber = ctlnumber
+        self._minscale = minscale
+        self._maxscale = maxscale
+        self._channel = channel
+        self._raw = pyo.RawMidi(self.handle_midi)
 
-font = ImageFont.truetype(fonts.Bitbuntu, 10)
+    def handle_midi(self, status, data1, data2):
+        print(status, data1, data2)
 
-backlight.set_all(255, 255, 255)
-backlight.show()
+# led_states = [False for _ in range(6)]
 
-param1 = 0
-param2 = 0
-param3 = 0
-param4 = 0
+# width, height = lcd.dimensions()
 
-def draw_text((x, y), text):
-    w, h = font.getsize(text)
+# font = ImageFont.truetype(fonts.Bitbuntu, 10)
 
-    image = Image.new('P', (w, h))
-    draw = ImageDraw.Draw(image)
+# backlight.set_all(255, 255, 255)
+# backlight.show()
 
-    draw.text((0, 0), text, 1, font)
+# param1 = 0
+# param2 = 0
+# param3 = 0
+# param4 = 0
 
-    for ix in range(w):
-        for iy in range(h):
-            pixel = image.getpixel((ix, iy))
-            lcd.set_pixel(ix + x, iy + y, pixel)
+# def draw_text((x, y), text):
+#     w, h = font.getsize(text)
 
-def draw():
-    draw_text((0, 0), str(param1).rjust(3))
-    draw_text((20, 0), str(param2).rjust(3))
-    draw_text((40, 0), str(param3).rjust(3))
-    draw_text((60, 0), str(param4).rjust(3))
+#     image = Image.new('P', (w, h))
+#     draw = ImageDraw.Draw(image)
 
-    lcd.show()
+#     draw.text((0, 0), text, 1, font)
 
-draw()
+#     for ix in range(w):
+#         for iy in range(h):
+#             pixel = image.getpixel((ix, iy))
+#             lcd.set_pixel(ix + x, iy + y, pixel)
 
-midiin = rtmidi.RtMidiIn()
+# def draw():
+#     draw_text((0, 0), str(param1).rjust(3))
+#     draw_text((20, 0), str(param2).rjust(3))
+#     draw_text((40, 0), str(param3).rjust(3))
+#     draw_text((60, 0), str(param4).rjust(3))
 
-def midi_2s_complement(value):
-    if value <= 64:
-        return value
-    else:
-        return value - 128
+#     lcd.show()
 
-def clamp(n, smallest, largest): return max(smallest, min(n, largest))
+# draw()
+ 
+# midiin = rtmidi.RtMidiIn()
 
-def handle_midi(message):
-    if message.isController():
-        controller = message.getControllerNumber()
-        value = message.getControllerValue()
+# def midi_2s_complement(value):
+#     if value <= 64:
+#         return value
+#     else:
+#         return value - 128
 
-        if controller == 22:
-            global param1
-            param1 = clamp(param1 + midi_2s_complement(value) / 8, 0, 100)
-        elif controller == 23:
-            global param2
-            param2 = clamp(param2 + midi_2s_complement(value) / 8, 0, 100)
-        elif controller == 24:
-            global param3
-            param3 = clamp(param3 + midi_2s_complement(value) / 8, 0, 100)
-        elif controller == 25:
-            global param4
-            param4 = clamp(param4 + midi_2s_complement(value) / 8, 0, 100)
+# def clamp(n, smallest, largest): return max(smallest, min(n, largest))
+
+# def handle_midi(message):
+#     if message.isController():
+#         controller = message.getControllerNumber()
+#         value = message.getControllerValue()
+
+#         if controller == 22:
+#             global param1
+#             param1 = clamp(param1 + midi_2s_complement(value) / 8, 0, 100)
+#         elif controller == 23:
+#             global param2
+#             param2 = clamp(param2 + midi_2s_complement(value) / 8, 0, )
+#         elif controller == 24:
+#             global param3
+#             param3 = clamp(param3 + midi_2s_complement(value) / 8, 0, 100)
+#         elif controller == 25:
+#             global param4
+#             param4 = clamp(param4 + midi_2s_complement(value) / 8, 0, 100)
     
-    draw()
+#     draw()
 
-ports = range(midiin.getPortCount())
-if ports:
-    midiin.openPort(1)
-    midiin.setCallback(handle_midi)
-else:
-    print('NO MIDI INPUT PORTS!')
+# ports = range(midiin.getPortCount())
+# if ports:
+#     midiin.openPort(1)
+#     midiin.setCallback(handle_midi)
+# else:
+#     print('NO MIDI INPUT PORTS!')
+
+# pyo.pa_list_devices()
+# print(pyo.pa_get_default_output())
+s = pyo.Server(audio='jack', duplex=0)
+s.boot()
+s.start()
+
+s.setAmp(1.0)
+
+pyo.Sine().out()
+
+# s.gui(locals())
+# Midiencoder(22)
+
+while 1:
+    pass
 
 try:
     signal.pause()
 except KeyboardInterrupt:
-    for x in range(6):
-        backlight.set_pixel(x, 0, 0, 0)
-        touch.set_led(x, 0)
-    backlight.show()
-    lcd.clear()
-    lcd.show()
+    s.stop()
+    # for x in range(6):
+    #     backlight.set_pixel(x, 0, 0, 0)
+    #     touch.set_led(x, 0)
+    # backlight.show()
+    # lcd.clear()
+    # lcd.show()
